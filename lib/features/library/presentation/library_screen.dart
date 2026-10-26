@@ -11,6 +11,10 @@ import '../../importing/comic_importer.dart';
 import '../../profile/profile_screen.dart';
 import '../../reader/reader_screen.dart';
 import '../domain/library_models.dart';
+import 'reading_lists_screen.dart';
+import 'library_manager.dart';
+import 'cover_motion.dart';
+import '../../profile/update_settings.dart';
 
 const destinations = ['Библиотека', 'Коллекции', 'Хронология', 'Профиль'];
 const destinationIcons = [
@@ -144,7 +148,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             content: Text(
               failures.isEmpty
                   ? 'Комиксы добавлены в библиотеку'
-                  : 'Не удалось импортировать: ${failures.join(', ')}. Поддерживаются CBZ, CBT, PDF и изображения.',
+                  : 'Не удалось импортировать: ${failures.join(', ')}. Поддерживаются CBZ, CBR, CB7, CBT, EPUB, PDF и изображения.',
             ),
           ),
         );
@@ -165,7 +169,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     LibrarySnapshot library,
   ) => perform(() async {
     final repository = ref.read(repositoryProvider);
-    if (action == 'series') {
+    if (action == 'edit') {
+      await editIssueDialog(context, ref, issue);
+    } else if (action == 'series') {
       final id = await choose('Переместить в серию', library.series);
       if (id != null) await repository.assignSeries(issue, id);
     } else if (action == 'cover') {
@@ -208,6 +214,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final library = ref.watch(libraryProvider);
     final sync = ref.watch(syncStateProvider).value;
+    if (library.value != null &&
+        library.value!.settings['autoUpdateChecks'] != false) {
+      ref.watch(appUpdateProvider);
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final desktop = constraints.maxWidth >= 900;
@@ -320,6 +330,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 Expanded(
                   child: section == 3
                       ? const ProfileScreen()
+                      : section == 2
+                      ? const ReadingListsScreen()
                       : library.when(
                           loading: () =>
                               const Center(child: CircularProgressIndicator()),
@@ -340,6 +352,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Widget buildContent(LibrarySnapshot library, bool desktop) {
+    if (selectedSeries != null && library.find(selectedSeries) == null) {
+      selectedSeries = null;
+    }
     final collection = library.find(selectedCollection);
     final active = library.issues.where((item) {
       final progress = library.progress[item.id];
@@ -422,6 +437,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      if (section == 0)
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const LibraryManager(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.tune),
+                          label: const Text('Управление'),
+                        ),
                       if (section == 0)
                         OutlinedButton.icon(
                           onPressed: () => perform(() async {
@@ -638,6 +663,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           Icons.collections_bookmark_outlined,
                         ),
                         title: Text(library.find(id)?.title ?? 'Серия'),
+                        trailing: IconButton(
+                          tooltip: 'Убрать серию из коллекции',
+                          icon: const Icon(Icons.close),
+                          onPressed: () => perform(
+                            () => ref.read(repositoryProvider).save(
+                              collection.id,
+                              collection.kind,
+                              {
+                                ...collection.data,
+                                'seriesIds': collection.seriesIds
+                                    .where((value) => value != id)
+                                    .toList(),
+                              },
+                            ),
+                          ),
+                        ),
                         subtitle: Text(
                           '${library.issues.where((issue) => issue.seriesId == id).length} выпусков',
                         ),
@@ -645,43 +686,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () => setState(() => section = 2),
-                    child: const Text('Настроить порядок чтения →'),
-                  ),
-                ],
-              ],
-              if (section == 2) ...[
-                if (library.collections.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Text('Сначала создайте коллекцию и добавьте серии.'),
-                  ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: library.collections
-                      .map(
-                        (item) => ChoiceChip(
-                          label: Text(item.title),
-                          selected: selectedCollection == item.id,
-                          onSelected: (_) =>
-                              setState(() => selectedCollection = item.id),
-                        ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 24),
-                if (collection == null && library.collections.isNotEmpty)
                   const Text(
-                    'Выберите коллекцию, чтобы составить свою хронологию.',
+                    'Порядок выпусков коллекции',
+                    style: TextStyle(fontSize: 20),
                   ),
-                if (collection != null) ...[
-                  const Text(
-                    'Перетаскивайте выпуски за маркер справа.',
-                    style: TextStyle(color: secondaryText),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   buildReadingOrder(library, collection),
                 ],
               ],
@@ -698,10 +707,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
             sliver: SliverLayoutBuilder(
               builder: (context, constraints) {
-                final count = (constraints.crossAxisExtent / 200).floor().clamp(
-                  2,
-                  7,
-                );
+                final count =
+                    (constraints.crossAxisExtent /
+                            ((library.settings['coverSize'] as num?)
+                                    ?.toDouble() ??
+                                200))
+                        .floor()
+                        .clamp(2, 7);
                 return SliverGrid(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => issueCard(issues[index], library),
@@ -735,7 +747,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Добавь CBZ, CBT, PDF или изображения.\nБиблиотека и прогресс работают без интернета.',
+          'Добавь CBZ, CBR, CB7, CBT, EPUB, PDF или изображения.\nБиблиотека и прогресс работают без интернета.',
           textAlign: TextAlign.center,
           style: TextStyle(color: secondaryText, height: 1.7),
         ),
@@ -778,6 +790,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     icon: const Icon(Icons.more_horiz, size: 20),
                     onSelected: (action) => issueAction(action, issue, library),
                     itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Редактировать выпуск'),
+                      ),
                       PopupMenuItem(
                         value: 'series',
                         child: Text('Переместить в серию'),
@@ -878,18 +894,20 @@ class ComicCover extends ConsumerWidget {
         ),
       ),
     );
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(7),
-      child: path != null
-          ? Image.file(
-              File(path),
-              fit: BoxFit.cover,
-              cacheWidth: 600,
-              errorBuilder: (_, _, _) => fallback,
-            )
-          : issue.demoCover != null
-          ? Image.asset(issue.demoCover!, fit: BoxFit.cover)
-          : fallback,
+    return CoverMotion(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: path != null
+            ? Image.file(
+                File(path),
+                fit: BoxFit.cover,
+                cacheWidth: 600,
+                errorBuilder: (_, _, _) => fallback,
+              )
+            : issue.demoCover != null
+            ? Image.asset(issue.demoCover!, fit: BoxFit.cover)
+            : fallback,
+      ),
     );
   }
 }

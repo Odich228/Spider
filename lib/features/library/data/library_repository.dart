@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/library_models.dart';
+import '../../importing/archive_book.dart';
 
 class LibraryRepository {
   LibraryRepository(this.db, this.owner, this.directory);
@@ -75,6 +76,8 @@ class LibraryRepository {
       Namespace.url.value,
       'pautina:series:${cleaned.toLowerCase()}',
     );
+    final existing = await entity(id);
+    if (existing != null && !existing.deleted) return id;
     await save(id, 'series', {'title': cleaned});
     return id;
   }
@@ -101,6 +104,141 @@ class LibraryRepository {
 
   Future<void> assignSeries(LibraryItem issue, String seriesId) =>
       save(issue.id, 'issue', {...issue.data, 'seriesId': seriesId});
+
+  Future<void> rename(LibraryItem item, String title) =>
+      save(item.id, item.kind, {...item.data, 'title': _title(title)});
+
+  Future<void> editIssue(
+    LibraryItem item,
+    String title,
+    String number,
+    String year,
+  ) => save(item.id, item.kind, {
+    ...item.data,
+    'title': _title(title),
+    'number': number.trim(),
+    'year': year.trim(),
+  });
+
+  Future<void> removeSeries(LibraryItem series) => db.transaction(() async {
+    final snapshot = await watch().first;
+    for (final issue in snapshot.issues.where((i) => i.seriesId == series.id)) {
+      await save(issue.id, 'issue', {...issue.data, 'seriesId': null});
+    }
+    for (final collection in snapshot.collections) {
+      if (collection.seriesIds.contains(series.id)) {
+        await save(collection.id, collection.kind, {
+          ...collection.data,
+          'seriesIds': collection.seriesIds
+              .where((id) => id != series.id)
+              .toList(),
+        });
+      }
+    }
+    await save(series.id, series.kind, series.data, deleted: true);
+  });
+
+  Future<void> moveIssues(Iterable<String> ids, String seriesId) =>
+      db.transaction(() async {
+        for (final id in ids) {
+          final row = await entity(id);
+          if (row != null && !row.deleted && row.kind == 'issue') {
+            await save(id, 'issue', {
+              ...jsonDecode(row.payload) as Json,
+              'seriesId': seriesId,
+            });
+          }
+        }
+      });
+
+  Future<String> createReadingList(String title) async {
+    final id = uuid.v4();
+    await save(id, 'readingList', {
+      'title': _title(title),
+      'readingOrder': <String>[],
+      'completed': <String>[],
+    });
+    return id;
+  }
+
+  Future<void> updateReadingList(
+    LibraryItem list, {
+    List<String>? order,
+    List<String>? completed,
+  }) => save(list.id, list.kind, {
+    ...list.data,
+    if (order != null) 'readingOrder': order.toSet().toList(),
+    if (completed != null) 'completed': completed.toSet().toList(),
+  });
+
+  static final settingsId = uuid.v5(Namespace.url.value, 'pautina:settings');
+  Future<void> settings(Json changes) => db.transaction(() async {
+    final previous = await entity(settingsId);
+    await save(settingsId, 'settings', {
+      ...?previous == null ? null : jsonDecode(previous.payload) as Json,
+      ...changes,
+    });
+  });
+
+  Future<void> toggleBookmark(String issueId, int page) =>
+      db.transaction(() async {
+        final id = uuid.v5(Namespace.url.value, 'pautina:bookmarks:$issueId');
+        final row = await entity(id);
+        final pages = row == null
+            ? <int>[]
+            : (jsonDecode(row.payload)['pages'] as List).cast<int>();
+        pages.contains(page) ? pages.remove(page) : pages.add(page);
+        pages.sort();
+        await save(id, 'bookmarks', {'issueId': issueId, 'pages': pages});
+      });
+
+  /// Copy guest data without replacing existing account records or moving files.
+  /// Files are copied into the account's managed directory before attaching them.
+  Future<int> copyGuestLibrary() async {
+    if (owner == 'local') return 0;
+    final guest = LibraryRepository(db, 'local', directory);
+    final rows = await guest._query.get();
+    var copied = 0;
+    for (final row in rows.where((row) => !row.deleted)) {
+      if (await entity(row.id) != null) continue;
+      final document = await guest.document(row.id);
+      if (document != null) {
+        final folder = Directory(p.join(directory.path, owner, row.id));
+        await folder.create(recursive: true);
+        Future<String> copy(String source) async {
+          if (!await File(source).exists()) return source;
+          final target = p.join(folder.path, p.basename(source));
+          await File(source).copy(target);
+          return target;
+        }
+
+        final source = await copy(document.sourcePath);
+        final pages = <String>[];
+        for (final path in LibraryItem.strings(
+          jsonDecode(document.pagesJson),
+        )) {
+          pages.add(path.startsWith('archive:') ? path : await copy(path));
+        }
+        await attachDocument(
+          row.id,
+          source,
+          pages,
+          document.coverPath == null ? null : await copy(document.coverPath!),
+        );
+        if (document.coverPendingUpload) {
+          await (db.update(
+                db.localDocuments,
+              )..where((r) => r.owner.equals(owner) & r.issueId.equals(row.id)))
+              .write(
+                const LocalDocumentsCompanion(coverPendingUpload: Value(true)),
+              );
+        }
+      }
+      await save(row.id, row.kind, jsonDecode(row.payload) as Json);
+      copied++;
+    }
+    return copied;
+  }
 
   Future<void> addSeries(LibraryItem collection, String seriesId) =>
       save(collection.id, 'collection', {
@@ -179,11 +317,26 @@ class LibraryRepository {
     final current = await document(id);
     if (current == null) return;
     final pages = LibraryItem.strings(jsonDecode(current.pagesJson));
+    final index = pages.indexWhere((page) => !page.startsWith(textPrefix));
+    String? original;
+    if (index >= 0) {
+      final source = await materializePage({
+        'source': current.sourcePath,
+        'page': pages[index],
+        'index': index,
+      });
+      original = (await File(source).copy(
+        p.join(
+          p.dirname(current.sourcePath),
+          'original-cover${p.extension(source)}',
+        ),
+      )).path;
+    }
     await (db.update(
       db.localDocuments,
     )..where((row) => row.owner.equals(owner) & row.issueId.equals(id))).write(
       LocalDocumentsCompanion(
-        coverPath: Value(pages.isEmpty ? null : pages.first),
+        coverPath: Value(original),
         coverPendingUpload: const Value(false),
       ),
     );

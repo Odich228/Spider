@@ -16,7 +16,11 @@ void main() {
     'reader restores its page and persists backwards and keyboard navigation',
     (tester) async {
       final db = AppDatabase(NativeDatabase.memory());
-      addTearDown(() => tester.runAsync(db.close));
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        await tester.runAsync(db.close);
+      });
       final repo = LibraryRepository(db, 'local', Directory.systemTemp);
       final image = File('assets/demo/cover-1.png').absolute.path;
       await tester.runAsync(() async {
@@ -56,6 +60,32 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pumpAndSettle();
       expect(find.text('2 / 2'), findsOneWidget);
+      await tester.tap(find.byTooltip('Закладка'));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+        final persisted = await tester.runAsync(() => repo.watch().first);
+        if (persisted!.bookmarks('comic').contains(2)) break;
+      }
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      await tester.tap(find.byTooltip('Меню чтения'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Настройки чтения'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Разворот'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 2'), findsOneWidget);
+      await tester.tap(find.byTooltip('Меню чтения'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Настройки чтения'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Вертикально'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.text('1 / 2'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();

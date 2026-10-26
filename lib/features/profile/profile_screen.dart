@@ -4,6 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../app/providers.dart';
 import '../../app/theme.dart';
+import '../reader/book_page.dart';
+import 'update_settings.dart';
+import 'cloud_configuration.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -130,6 +133,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 30),
+              const AppearanceSettings(),
+              const UpdateSettings(),
+              if (client == null) const CloudConfiguration(),
               if (client == null)
                 const Card(
                   child: Padding(
@@ -235,6 +241,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ],
                 ),
+                OutlinedButton.icon(
+                  onPressed: busy
+                      ? null
+                      : () async {
+                          setState(() => busy = true);
+                          try {
+                            final count = await ref
+                                .read(repositoryProvider)
+                                .copyGuestLibrary();
+                            if (mounted) {
+                              setState(
+                                () => message =
+                                    'Из локальной библиотеки добавлено записей: $count. Уже существующие данные аккаунта сохранены.',
+                              );
+                            }
+                          } catch (_) {
+                            if (mounted) {
+                              setState(
+                                () => message = 'Не удалось перенести библиотеку. Повторите попытку.',
+                              );
+                            }
+                          } finally {
+                            if (mounted) setState(() => busy = false);
+                          }
+                        },
+                  icon: const Icon(Icons.drive_file_move_outline),
+                  label: const Text('Добавить локальную библиотеку в аккаунт'),
+                ),
                 ...?sync?.conflicts.map(
                   (conflict) => Card(
                     child: Padding(
@@ -283,7 +317,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               const SizedBox(height: 42),
               const Text(
-                'ПАУТИНА · 0.1.0',
+                'ПАУТИНА · 0.2.0',
                 style: TextStyle(
                   color: secondaryText,
                   fontSize: 11,

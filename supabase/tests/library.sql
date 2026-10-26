@@ -13,6 +13,10 @@ begin
   if not (response->>'conflict')::boolean then raise exception 'stale update was accepted'; end if;
   response := public.apply_library_mutation('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'series', '{"title":"updated"}', false, 1, 'dddddddd-dddd-4ddd-8ddd-dddddddddddd');
   if (response->'entity'->>'revision')::int <> 2 then raise exception 'version did not advance'; end if;
+  response := public.apply_library_mutation('12345678-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'readingList', '{"title":"Route","readingOrder":[],"completed":[]}', false, 0, '12345678-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  if response->'entity'->>'kind' <> 'readingList' then raise exception 'reading lists rejected'; end if;
+  perform public.apply_library_mutation('12345679-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'settings', '{"theme":"symbiote"}', false, 0, '12345679-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  perform public.apply_library_mutation('12345670-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bookmarks', '{"pages":[1,3]}', false, 0, '12345670-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
 end $$;
 select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
 do $$ begin

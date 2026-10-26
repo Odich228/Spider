@@ -60,3 +60,6 @@ android/key.properties
 *.mobileprovision
 ios/Flutter/CI-Signing.xcconfig
 __pycache__/
+
+*.pfx
+*.key

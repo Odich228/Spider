@@ -18,6 +18,7 @@ import subprocess
 import tempfile
 import zipfile
 
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -171,6 +172,7 @@ def ios(flutter, common, dist):
 
 
 def main():
+    from signing import sign_windows, package_macos
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform", choices=["android", "windows", "macos", "ios"], required=True)
     parser.add_argument("--build-number", type=int, required=True)
@@ -190,15 +192,16 @@ def main():
     elif args.platform == "windows":
         run([flutter, "build", "windows", *common])
         target = dist / "Pautina-windows-x64.zip"
+        signing = sign_windows(ROOT / "build/windows/x64/runner/Release")
         zip_tree(ROOT / "build/windows/x64/runner/Release", target)
-        files, signing = [target], "unsigned-portable"
+        files = [target]
     else:
         run([flutter, "build", "macos", *common])
         apps = list((ROOT / "build/macos/Build/Products/Release").glob("*.app"))
         if len(apps) != 1: raise ValueError("Expected exactly one macOS app")
         target = dist / "Pautina-macos.app.zip"
-        run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(apps[0]), str(target)])
-        files, signing = [target], "ad-hoc-not-notarized"
+        signing = package_macos(apps[0], target, ROOT)
+        files = [target]
     manifest = {"platform": args.platform, "version": app_version(), "build_number": args.build_number,
                 "commit": os.getenv("GITHUB_SHA", "local"), "signing": signing,
                 "files": [{"name": file.name, "sha256": hashlib.file_digest(file.open("rb"), "sha256").hexdigest()} for file in files]}

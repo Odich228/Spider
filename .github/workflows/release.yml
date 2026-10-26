@@ -59,6 +59,7 @@ jobs:
           psql -h localhost -U postgres -d pautina_test -v ON_ERROR_STOP=1
           -f tool/sql/test_bootstrap.sql
           -f supabase/migrations/202610260001_library.sql
+          -f supabase/migrations/202610260002_reading_lists.sql
           -f supabase/tests/library.sql
 
   build:
@@ -95,13 +96,20 @@ jobs:
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ matrix.platform == 'android' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ matrix.platform == 'android' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ matrix.platform == 'android' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ matrix.platform == 'android' && secrets.ANDROID_KEY_PASSWORD || '' }}
+          IOS_CERTIFICATE_BASE64: ${{ matrix.platform == 'ios' && secrets.IOS_CERTIFICATE_BASE64 || '' }}
+          IOS_CERTIFICATE_PASSWORD: ${{ matrix.platform == 'ios' && secrets.IOS_CERTIFICATE_PASSWORD || '' }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ matrix.platform == 'ios' && secrets.IOS_PROVISION_PROFILE_BASE64 || '' }}
+          WINDOWS_CERTIFICATE_BASE64: ${{ matrix.platform == 'windows' && secrets.WINDOWS_CERTIFICATE_BASE64 || '' }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ matrix.platform == 'windows' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+          MACOS_CERTIFICATE_BASE64: ${{ matrix.platform == 'macos' && secrets.MACOS_CERTIFICATE_BASE64 || '' }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ matrix.platform == 'macos' && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
+          MACOS_NOTARY_KEY_BASE64: ${{ matrix.platform == 'macos' && secrets.MACOS_NOTARY_KEY_BASE64 || '' }}
+          MACOS_NOTARY_KEY_ID: ${{ matrix.platform == 'macos' && secrets.MACOS_NOTARY_KEY_ID || '' }}
+          MACOS_NOTARY_ISSUER_ID: ${{ matrix.platform == 'macos' && secrets.MACOS_NOTARY_ISSUER_ID || '' }}
           IOS_EXPORT_METHOD: ${{ vars.IOS_EXPORT_METHOD }}
         run: python tool/ci/build.py --platform ${{ matrix.platform }} --build-number ${{ github.run_number }}
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

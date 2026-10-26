@@ -10,6 +10,7 @@ import 'package:uuid/uuid.dart';
 
 import '../library/data/library_repository.dart';
 import '../library/domain/library_models.dart';
+import 'archive_book.dart';
 
 const imageExtensions = {'.jpg', '.jpeg', '.png', '.webp'};
 const supportedExtensions = [
@@ -22,6 +23,11 @@ const supportedExtensions = [
   'jpeg',
   'png',
   'webp',
+  'cbr',
+  'rar',
+  'cb7',
+  '7z',
+  'epub',
 ];
 
 abstract interface class ArchivePageDecoder {
@@ -113,9 +119,7 @@ int naturalCompare(String left, String right) {
 Future<Json> prepareImport(Json job) async {
   final source = File(job['source'] as String);
   if (await source.length() > 512 * 1024 * 1024) {
-    throw const FormatException(
-      'Максимальный размер файла в первой версии — 512 МБ.',
-    );
+    throw const FormatException('Максимальный размер файла — 512 МБ.');
   }
   final hash = (await sha256.bind(source.openRead()).first).toString();
   final id = const Uuid().v5(Namespace.url.value, 'pautina:sha256:$hash');
@@ -124,7 +128,7 @@ Future<Json> prepareImport(Json job) async {
     extension.isEmpty ? '' : extension.substring(1),
   )) {
     throw const FormatException(
-      'Этот формат пока не подключён. Используйте CBZ, CBT, PDF или изображения.',
+      'Поддерживаются CBZ, CBR, CB7, CBT, EPUB, PDF и изображения.',
     );
   }
   final folder = Directory(
@@ -136,12 +140,34 @@ Future<Json> prepareImport(Json job) async {
     await source.copy(imported);
   }
   List<String> pages = [];
+  Json metadata = {};
   if (imageExtensions.contains(extension)) {
     pages = [imported];
   } else if (extension != '.pdf') {
-    pages = ZipTarPageDecoder().extract(imported, p.join(folder.path, 'pages'));
+    final book = await indexBook(imported);
+    pages = LibraryItem.strings(book['pages']);
+    metadata = book['metadata'] as Json;
   }
-  return {'id': id, 'hash': hash, 'source': imported, 'pages': pages};
+  String? cover;
+  final firstImage = pages.indexWhere((page) => !page.startsWith(textPrefix));
+  if (firstImage >= 0) {
+    final rendered = await materializePage({
+      'source': imported,
+      'page': pages[firstImage],
+      'index': firstImage,
+    });
+    cover = (await File(
+      rendered,
+    ).copy(p.join(folder.path, 'original-cover${p.extension(rendered)}'))).path;
+  }
+  return {
+    'id': id,
+    'hash': hash,
+    'source': imported,
+    'pages': pages,
+    'metadata': metadata,
+    'cover': cover,
+  };
 }
 
 class ComicImporter {
@@ -163,16 +189,26 @@ class ComicImporter {
       count = document.pages.length;
       await document.dispose();
     }
-    await repository.attachDocument(id, source, pages, pages.firstOrNull);
+    await repository.attachDocument(
+      id,
+      source,
+      pages,
+      prepared['cover'] as String?,
+    );
     final existing = await repository.entity(id);
     if (existing == null) {
+      final metadata = prepared['metadata'] as Json;
+      final metadataSeries = metadata['seriesTitle'] as String?;
       await repository.save(id, 'issue', {
         'title': p.basenameWithoutExtension(path),
         'number': RegExp(r'#(\d+)').firstMatch(path)?.group(1) ?? '',
         'format': p.extension(path).substring(1).toUpperCase(),
-        'seriesId': seriesId,
+        'seriesId': metadataSeries == null
+            ? seriesId
+            : await repository.createSeries(metadataSeries),
         'fingerprint': prepared['hash'],
         'pageCount': count,
+        ...metadata,
       });
     } else if (existing.deleted) {
       await repository.save(id, 'issue', jsonDecode(existing.payload) as Json);

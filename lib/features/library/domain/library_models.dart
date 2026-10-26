@@ -36,6 +36,39 @@ class LibrarySnapshot {
   List<LibraryItem> get issues => ofKind('issue');
   List<LibraryItem> get series => ofKind('series');
   List<LibraryItem> get collections => ofKind('collection');
+  List<LibraryItem> get readingLists => ofKind('readingList');
+  Json get settings => ofKind('settings').firstOrNull?.data ?? {};
+  List<int> bookmarks(String issueId) =>
+      ofKind('bookmarks')
+              .where((i) => i.data['issueId'] == issueId)
+              .firstOrNull
+              ?.data['pages']
+          is List
+      ? (ofKind('bookmarks')
+                    .firstWhere((i) => i.data['issueId'] == issueId)
+                    .data['pages']
+                as List)
+            .whereType<int>()
+            .toList()
+      : [];
+  List<LibraryItem> listIssues(LibraryItem list) => list.readingOrder
+      .map(find)
+      .whereType<LibraryItem>()
+      .where((i) => i.kind == 'issue')
+      .toList();
+  Set<String> get possibleDuplicates {
+    final groups = <String, List<String>>{};
+    for (final issue in issues) {
+      final key =
+          '${issue.title.trim().toLowerCase()}|${issue.data['number'] ?? ''}|${issue.data['year'] ?? ''}';
+      groups.putIfAbsent(key, () => []).add(issue.id);
+    }
+    return groups.values
+        .where((ids) => ids.length > 1)
+        .expand((ids) => ids)
+        .toSet();
+  }
+
   LibraryItem? find(String? id) {
     for (final item in items) {
       if (item.id == id) return item;

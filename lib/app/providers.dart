@@ -17,6 +17,12 @@ final directoryProvider = Provider<Directory>(
   (_) => throw UnimplementedError(),
 );
 final cloudProvider = Provider<SupabaseClient?>((_) => null);
+final cloudConnectionProvider = Provider<({String url, String key})>(
+  (_) => (
+    url: const String.fromEnvironment('SUPABASE_URL'),
+    key: const String.fromEnvironment('SUPABASE_ANON_KEY'),
+  ),
+);
 final sessionProvider = StreamProvider<User?>((ref) async* {
   final client = ref.watch(cloudProvider);
   yield client?.auth.currentUser;
@@ -54,8 +60,8 @@ final syncServiceProvider = Provider<SyncService?>((ref) {
   final repository = ref.watch(repositoryProvider);
   // Token lookup is owner-scoped even if an account changes during a request.
   final api = SupabaseClient(
-    const String.fromEnvironment('SUPABASE_URL'),
-    const String.fromEnvironment('SUPABASE_ANON_KEY'),
+    ref.watch(cloudConnectionProvider).url,
+    ref.watch(cloudConnectionProvider).key,
     accessToken: () async {
       final session = client.auth.currentSession;
       if (session?.user.id != repository.owner) {

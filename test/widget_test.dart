@@ -39,6 +39,13 @@ void main() {
         findsOneWidget,
       );
       expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Хронология').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Хронологии'), findsOneWidget);
+      await tester.tap(find.text('Профиль').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Оформление и хранение'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
     });

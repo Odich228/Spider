@@ -39,10 +39,10 @@ def main():
     args = parser.parse_args()
     manifests = validate(args.directory, args.number, args.commit)
     tag = f'v{manifests[0]["version"]}-build.{args.number}'
-    notes = [f"# Паутина {tag}", "", f"Commit: `{args.commit}`", "", "Первая версия читалки. Комиксы добавляются пользователем.", "", "| Платформа | Подпись / формат |", "|---|---|"]
+    notes = [f"# Паутина {tag}", "", f"Commit: `{args.commit}`", "", "Читалка с CBR/CB7/EPUB, ленивым кэшем, разворотами, закладками и независимыми хронологиями. Комиксы добавляются пользователем.", "", "| Платформа | Подпись / формат |", "|---|---|"]
     for manifest in manifests:
         notes.append(f'| {manifest["platform"]} | {manifest["signing"]} |')
-    notes += ["", "Без секретов подписи iOS собирается как **неподписанный .app.zip**: его нельзя установить на iPhone. После подключения сертификата и provisioning profile публикуется IPA; способ установки определяется типом профиля.", "", "Android без upload key — устанавливаемый preview с отладочной подписью; ключ между CI-запусками не сохраняется. Для обновлений и магазина настройте постоянный upload key. macOS пока без Developer ID/notarization; Windows — portable ZIP без Authenticode.", "", "Метаданные, коллекции, порядок, прогресс и свои обложки синхронизируются только в сборках с настроенным Supabase. Исходные файлы комиксов остаются локальными.", "", "Подробности: `docs/ci-cd.md`, `docs/architecture.md`."]
+    notes += ["", "Без секретов подписи iOS собирается как **неподписанный .app.zip**: его нельзя установить на iPhone. После подключения сертификата и provisioning profile публикуется IPA; способ установки определяется типом профиля.", "", "Android без upload key — устанавливаемый preview с отладочной подписью; ключ между CI-запусками не сохраняется. Для обновлений и магазина настройте постоянный upload key. Windows Authenticode и macOS Developer ID/notarization включаются при настройке соответствующих Secrets; фактический режим указан в таблице выше.", "", "Метаданные, коллекции, хронологии, закладки, настройки, прогресс и свои обложки синхронизируются только в сборках с настроенным Supabase. Исходные файлы комиксов остаются локальными.", "", "Подробности: `docs/ci-cd.md`, `docs/architecture.md`."]
     (args.directory / "RELEASE-NOTES.md").write_text("\n".join(notes) + "\n", encoding="utf-8")
     (args.directory / "release.json").write_text(json.dumps({"tag": tag, "commit": args.commit, "platforms": manifests}, indent=2) + "\n")
     lines = []
