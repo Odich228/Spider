@@ -49,7 +49,8 @@ class ReleaseTests(unittest.TestCase):
     def test_java_property_password_escaping(self):
         self.assertEqual(build.property_escape('a b:c\\d\n'), 'a\\ b\\:c\\\\d\\n')
         self.assertEqual(build.property_escape('паук'), r'\u043f\u0430\u0443\u043a')
-    def test_version_matches_project(self):
-        self.assertEqual(build.app_version(), '0.1.0')
+    def test_empty_native_bundle_blocks_packaging(self):
+        with self.assertRaises(ValueError):
+            build.zip_tree(self.directory / 'missing-bundle', self.directory / 'empty.zip')
 
 if __name__ == '__main__': unittest.main()

@@ -61,7 +61,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Widget build(BuildContext context) {
     final issue = widget.issue;
     final local = ref.watch(documentProvider(issue.id));
-    final progress = ref.watch(libraryProvider).value?.progress[issue.id];
+    final library = ref.watch(libraryProvider);
+    final progress = library.value?.progress[issue.id];
+    if (!initialized && library.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return local.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),

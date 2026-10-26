@@ -1,9 +1,12 @@
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
+import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:pautina/features/importing/comic_importer.dart';
+import 'package:pautina/core/database/app_database.dart';
+import 'package:pautina/features/library/data/library_repository.dart';
 
 void main() {
   late Directory scratch;
@@ -24,6 +27,26 @@ void main() {
       ..sort(naturalCompare);
     expect(names, ['page1.jpg', 'page2.jpg', 'page10.jpg']);
   });
+  test(
+    'reimport restores a removed issue without losing reading progress',
+    () async {
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final repository = LibraryRepository(db, 'local', scratch);
+      final source = File(p.join(scratch.path, 'sample.png'))
+        ..writeAsBytesSync([1, 2, 3]);
+      final importer = ComicImporter(repository);
+      final id = await importer.importFile(source.path);
+      await repository.saveProgress(id, 1, 1);
+      final issue = (await repository.watch().first).find(id)!;
+      await repository.save(id, 'issue', issue.data, deleted: true);
+      expect((await repository.watch().first).issues, isEmpty);
+      expect(await importer.importFile(source.path), id);
+      final restored = await repository.watch().first;
+      expect(restored.issues, hasLength(1));
+      expect(restored.progress[id]!.finished, isTrue);
+    },
+  );
   test('archive paths cannot escape the managed page directory', () async {
     final archive = Archive()
       ..addFile(ArchiveFile.bytes('../../escape.png', [1, 2, 3]))

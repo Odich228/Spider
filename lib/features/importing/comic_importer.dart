@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
@@ -163,7 +164,8 @@ class ComicImporter {
       await document.dispose();
     }
     await repository.attachDocument(id, source, pages, pages.firstOrNull);
-    if (await repository.entity(id) == null) {
+    final existing = await repository.entity(id);
+    if (existing == null) {
       await repository.save(id, 'issue', {
         'title': p.basenameWithoutExtension(path),
         'number': RegExp(r'#(\d+)').firstMatch(path)?.group(1) ?? '',
@@ -172,6 +174,8 @@ class ComicImporter {
         'fingerprint': prepared['hash'],
         'pageCount': count,
       });
+    } else if (existing.deleted) {
+      await repository.save(id, 'issue', jsonDecode(existing.payload) as Json);
     }
     return id;
   }

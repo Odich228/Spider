@@ -71,8 +71,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final sync = ref.watch(syncStateProvider).value;
     final library = ref.watch(libraryProvider).value;
     final read =
-        library?.progress.values
-            .where((progress) => progress.finished)
+        library?.issues
+            .where((issue) => library.progress[issue.id]?.finished ?? false)
             .length ??
         0;
     return SingleChildScrollView(
