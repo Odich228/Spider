@@ -1,0 +1,38 @@
+name: pautina
+description: "Cross-platform offline-first comic library and reader."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.5
+  flutter: 3.47.7
+
+dependencies:
+  archive: ^4.5.2
+  crypto: ^3.0.8
+  drift: ^2.35.3
+  file_picker: ^13.3.0
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^3.4.3
+  path: ^1.9.1
+  path_provider: ^2.1.6
+  pdfrx: ^2.10.1
+  sqlite3: ^3.8.0
+  supabase_flutter: ^2.18.3
+  uuid: ^4.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  drift_dev: ^2.35.2
+  build_runner: ^2.17.1
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/demo/
