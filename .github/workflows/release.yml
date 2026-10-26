@@ -112,7 +112,7 @@ jobs:
           MACOS_NOTARY_ISSUER_ID: ${{ matrix.platform == 'macos' && secrets.MACOS_NOTARY_ISSUER_ID || '' }}
           IOS_EXPORT_METHOD: ${{ vars.IOS_EXPORT_METHOD }}
         run: python tool/ci/build.py --platform ${{ matrix.platform }} --build-number ${{ github.run_number }}
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-${{ matrix.platform }}
           path: dist/*
