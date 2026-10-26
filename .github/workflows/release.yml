@@ -92,6 +92,9 @@ jobs:
         with:
           python-version: '3.12'
       - uses: ./.github/actions/setup-flutter
+      - name: Verify Windows update installer
+        if: matrix.platform == 'windows'
+        run: python -m unittest discover -s tool/ci/tests -v
       - name: Build and package
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}

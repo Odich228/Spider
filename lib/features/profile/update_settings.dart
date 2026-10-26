@@ -357,7 +357,7 @@ fi
         await script.writeAsString(r'''
 param([string]$ConfigPath)
 $ErrorActionPreference = 'Stop'
-$config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+$config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
 Wait-Process -Id $config.processId -ErrorAction SilentlyContinue
 $source = [IO.Path]::GetFullPath($config.source)
 $target = [IO.Path]::GetFullPath($config.target)
