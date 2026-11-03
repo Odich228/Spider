@@ -1,5 +1,4 @@
 use macroquad::prelude::*;
-use std::f32::consts::PI;
 
 const HUD_CYAN: Color = Color::new(0.58, 0.86, 0.94, 0.95);
 const HUD_DIM: Color = Color::new(0.22, 0.42, 0.52, 0.60);
@@ -104,7 +103,7 @@ fn draw_telemetry_top_left(state: &HudState) {
     let icon_y = box_y + 18.0;
     for r in 1..=3 {
         let radius = r as f32 * 5.0;
-        draw_arc(icon_x, icon_y, 16, radius, -45.0, 90.0, HUD_CYAN);
+        draw_arc(icon_x, icon_y, 16, radius, -45.0, 90.0, 1.5, HUD_CYAN);
     }
     draw_circle(icon_x, icon_y, 2.0, HUD_WHITE);
 
@@ -205,7 +204,7 @@ fn draw_web_shooters_bottom_right(state: &HudState) {
     // --- Правый веб-шутер (RIGHT 100%) ---
     let r_y = base_y + 75.0;
     draw_text(
-        &format!("RIGHT {:.0}%", state.web_left),
+        &format!("RIGHT {:.0}%", state.web_right),
         base_x + 5.0,
         r_y,
         15.0,
