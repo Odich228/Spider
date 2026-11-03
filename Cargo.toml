@@ -1,0 +1,9 @@
+[package]
+name = "spiderman-stark-hud"
+version = "0.1.0"
+edition = "2021"
+authors = ["Spider-Man HUD Team"]
+description = "Stark Tech Heads-Up Display (HUD) for Raspberry Pi (Linux) and Windows"
+
+[dependencies]
+macroquad = "0.4"
